@@ -1,0 +1,1 @@
+Hi, it`s my first pet-project Snake3D. I learn c++ , git and openGL and enjoy happiness :))
