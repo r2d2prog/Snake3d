@@ -3,6 +3,7 @@
 #include <unordered_set>
 #include <glm/glm.hpp>
 #include <cstdlib>
+#include <vector>
 #define GRID_COL_COUNT 16
 #define GRID_ROW_COUNT 16
 #define GRID_CELLS_TOTAL GRID_COL_COUNT * GRID_ROW_COUNT
@@ -13,7 +14,8 @@
 #define START_TIME_UPD 1.75
 
 using glm::vec3;
-using std::unordered_set;
+using std::vector;
+using std::pair;
 const float MIN_UPDATE_TIME = (float)1000/60;
 
 typedef struct GLFWwindow GLFWwindow;
@@ -32,8 +34,7 @@ private:
     float lastFrame;
     GLFWwindow* gameWindow;
     Snake* snake;
-    vec3 foodPos;
-    vec3 foodColor;
+    pair<vec3,vec3> food;
     bool isFoodRedraw;
     void CreateGrid();
     void DrawGrid(void* mv, void* proj);
@@ -79,9 +80,9 @@ class Snake
 {
 private:
     bool isNeedRedraw;
-    unordered_set<unsigned int> cells;
+    vector<pair<unsigned int,vec3> > cells;
     vec3 dir;
-    vec3 color;
+    //vec3 color;
     float vertices[144];
     unsigned int indices[36];
     void WriteVector(vec3 coords);
@@ -92,11 +93,11 @@ public:
     {
         return &dir;
     }
-    inline unordered_set<unsigned int>* GetCells()
+    inline  vector<pair<unsigned int,vec3> >* GetCells()
     {
         return &cells;
     }
-    void Update(GLFWwindow* window);
+    bool Update(GLFWwindow* window, const pair<vec3,vec3>* food);
     void DrawSnake(void* mv, void* proj);
     inline bool* SetRedraw()
     {

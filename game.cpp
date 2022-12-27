@@ -32,7 +32,6 @@ void SetVec3Uniform(unsigned int program, const char* source, void* vector3)
     glUniform3fv(location,1,(GLfloat*)vector3);
 }
 
-
 void Snake::DrawSnake(void* mv, void* proj)
 {
     if(isNeedRedraw)
@@ -42,22 +41,22 @@ void Snake::DrawSnake(void* mv, void* proj)
         glUseProgram(program);
         SetMat4Uniform(program,"modelView",mv);
         SetMat4Uniform(program,"projection",proj);
-        SetVec3Uniform(program,"color",&color);
         glBindVertexArray(snakeVao);
         for(auto it = cells.begin(); it != cells.end(); ++it)
         {
             mat4 model(1.0f);
-            vec3 position = Game::CellToPos(*it);
+            vec3 position = Game::CellToPos(it->first);
             model = glm::translate(model, position);
             SetMat4Uniform(program,"model",&model);
+            SetVec3Uniform(program,"color",&it->second);
             glDrawElements(GL_TRIANGLES,36,GL_UNSIGNED_INT,0);
         }
     }
 }
 
-void Snake::Update(GLFWwindow* window)
+bool Snake::Update(GLFWwindow* window, const pair<vec3,vec3>* food)
 {
-    vec3 newPos = Game::CellToPos(*cells.begin()) + dir;
+    vec3 newPos = Game::CellToPos(cells[0].first) + dir;
     int cell = Game::PosToCell(newPos);
     if(cell < 0)
     {
@@ -66,22 +65,29 @@ void Snake::Update(GLFWwindow* window)
     }
     else
     {
-        unsigned index = 0;
-        for(auto it = cells.begin(); it != cells.end(); ++it)
+        unsigned int last = 0;
+        for(unsigned int i = 0; i < cells.size();++i)
         {
-            if(it != cells.begin())
+            if(!i)
             {
-                cells.insert(it,index);
-                index = *it;
+                last = cells[i].first;
+                cells[i].first = cell;
             }
             else
             {
-                index = *it;
-                cells.insert(it,cell);
+                unsigned int temp = cells[i].first;
+                cells[i].first = last;
+                last = temp;
             }
         }
-        cells.erase(index);
+        int foodCell = Game::PosToCell(food->first);
+        if(foodCell == cell)
+        {
+            cells.push_back(std::make_pair(last,food->second));
+            return true;
+        }
     }
+    return false;
 }
 
 Snake::Snake()
@@ -118,9 +124,11 @@ Snake::Snake()
     GraphicsData::Data()["snakeVao"] = std::make_pair(snakeVao, BUFFER);
     GraphicsData::Data()["snakeVbo"] = std::make_pair(snakeVbo, BUFFER);
     GraphicsData::Data()["snakeEbo"] = std::make_pair(snakeEbo, BUFFER);
-    cells.insert((unsigned int)GRID_CENTER);
-    dir = vec3(0.0f, 0.0f, -GRID_CELL_SPACE);
+    vec3 color;
     Game::SetRandColor(&color);
+    cells.push_back(std::make_pair((unsigned int)GRID_CENTER, color));
+    dir = vec3(0.0f, 0.0f, -GRID_CELL_SPACE);
+
     isNeedRedraw = true;
 }
 
@@ -255,16 +263,19 @@ void Game::DrawGrid(void* mv,void* proj)
 
 void Game::UpdateFood()
 {
-    unordered_set<unsigned int>* cells = snake->GetCells();
+    auto cells = snake->GetCells();
     vector<unsigned int> gridCells(GRID_CELLS_TOTAL);
+    vector<unsigned int> cellsPos;
     for(unsigned i = 0; i < GRID_CELLS_TOTAL; ++i)
         gridCells[i] = i;
+    for(unsigned i = 0; i < cells->size(); ++i)
+        cellsPos.push_back((*cells)[i].first);
     vector<unsigned int> v;
-    std::set_symmetric_difference(cells->begin(), cells->end(), gridCells.begin(), gridCells.end(), std::back_inserter(v));
+    std::set_symmetric_difference(cellsPos.begin(), cellsPos.end(), gridCells.begin(), gridCells.end(), std::back_inserter(v));
     std::srand(std::time(0));
     unsigned int value = std::rand() % v.size();
-    foodPos = CellToPos(value);
-    SetRandColor(&foodColor);
+    food.first = CellToPos(value);
+    SetRandColor(&food.second);
     isFoodRedraw = true;
 }
 
@@ -277,9 +288,9 @@ void Game::DrawFood(void* mv, void* proj)
         glUseProgram(program);
         SetMat4Uniform(program,"modelView",mv);
         SetMat4Uniform(program,"projection",proj);
-        SetVec3Uniform(program,"color",&foodColor);
+        SetVec3Uniform(program,"color",&food.second);
         mat4 model(1.0f);
-        model = glm::translate(model, foodPos);
+        model = glm::translate(model, food.first);
         SetMat4Uniform(program,"model",&model);
         glBindVertexArray(foodVao);
         glDrawElements(GL_TRIANGLES,36,GL_UNSIGNED_INT,0);
@@ -325,7 +336,9 @@ void Game::Update()
         if(currentFrame - startTick >= START_TIME_UPD - ((level - 1) * 0.25))
         {
             startTick = currentFrame;
-            snake->Update(gameWindow);
+            bool isFoodUpdate = snake->Update(gameWindow, &food);
+            if(isFoodUpdate)
+                UpdateFood();
             isNeedRedraw = true;
         }
         Render();
