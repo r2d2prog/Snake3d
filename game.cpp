@@ -30,25 +30,48 @@ void SetVec3Uniform(unsigned int program, const char* source, void* vector3)
 
 void Snake::DrawSnake(void* mv, void* proj)
 {
-    auto snakeVao = GraphicsData::Data()["snakeVao"].first;
-    auto program = GraphicsData::Data()["sProgram"].first;
-    vec3 color(0.82f, 0.82f, 0.82f);
-    mat4 model(1.0f);
-    model = glm::translate(model,position);
-    glUseProgram(program);
-    SetMat4Uniform(program,"model",&model);
-    SetMat4Uniform(program,"modelView",mv);
-    SetMat4Uniform(program,"projection",proj);
-    SetVec3Uniform(program,"color",&color);
-    glBindVertexArray(snakeVao);
-    glDrawElements(GL_TRIANGLES,36,GL_UNSIGNED_INT,0);
+    if(isNeedRedraw)
+    {
+        auto snakeVao = GraphicsData::Data()["snakeVao"].first;
+        auto program = GraphicsData::Data()["sProgram"].first;
+        vec3 color(0.82f, 0.82f, 0.82f);
+        mat4 model(1.0f);
+        model = glm::translate(model,position);
+        glUseProgram(program);
+        SetMat4Uniform(program,"model",&model);
+        SetMat4Uniform(program,"modelView",mv);
+        SetMat4Uniform(program,"projection",proj);
+        SetVec3Uniform(program,"color",&color);
+        glBindVertexArray(snakeVao);
+        glDrawElements(GL_TRIANGLES,36,GL_UNSIGNED_INT,0);
+    }
+}
+
+int Snake::PosToCell(vec3 pos)
+{
+    int colIndex = (int)((pos.x - GRID_CELL_CENTER) /  GRID_CELL_SPACE) + GRID_COL_COUNT / 2;
+    int rowIndex = (int)(pos.z / GRID_CELL_SPACE) + GRID_ROW_COUNT + 1 ;
+    if((colIndex < 0 || colIndex >= GRID_COL_COUNT) || (rowIndex < 0 || rowIndex >= GRID_ROW_COUNT ))
+        return -1;
+    return rowIndex * GRID_COL_COUNT + colIndex;
+}
+
+vec3 Snake::CellToPos(unsigned int cell)
+{
+    vec3 result(0);
+    unsigned int row = cell / GRID_ROW_COUNT;
+    unsigned col = cell - GRID_COL_COUNT * row;
+    result.z = Z_BEGIN - GRID_CELL_CENTER - ((GRID_ROW_COUNT - row - 1) * GRID_CELL_SPACE);
+    float xBegin =  GRID_CELL_CENTER - (float)GRID_COL_COUNT / 2 * GRID_CELL_SPACE;
+    result.x = xBegin + col * GRID_CELL_SPACE;
+    return result;
 }
 
 Snake::Snake()
 {
-    float rowCenter = GRID_ROW_COUNT * GRID_CELL_SPACE / 2;
+    /*float rowCenter = GRID_ROW_COUNT * GRID_CELL_SPACE / 2;
     float centerX = (GRID_COL_COUNT & 1) == 0 ? GRID_CELL_SPACE / 2 : 0;
-    float centerZ = (GRID_ROW_COUNT & 1) == 0 ?  Z_BEGIN - rowCenter - GRID_CELL_SPACE / 2: Z_BEGIN - rowCenter;
+    float centerZ = (GRID_ROW_COUNT & 1) == 0 ?  Z_BEGIN - rowCenter - GRID_CELL_SPACE / 2: Z_BEGIN - rowCenter;*/
     float offset = 0.03f;
     float cubeSide = GRID_CELL_SPACE - offset * 2;
     float cubeHalfSide = cubeSide / 2;
@@ -81,8 +104,10 @@ Snake::Snake()
     GraphicsData::Data()["snakeVao"] = std::make_pair(snakeVao, BUFFER);
     GraphicsData::Data()["snakeVbo"] = std::make_pair(snakeVbo, BUFFER);
     GraphicsData::Data()["snakeEbo"] = std::make_pair(snakeEbo, BUFFER);
-    position = vec3(centerX, 0.0f, centerZ);
+    position = CellToPos(GRID_CENTER);
+    //printf("%f\n",position.z);
     dir = vec3(0.0f, 0.0f, -GRID_CELL_SPACE);
+    isNeedRedraw = true;
 }
 
 Snake::~Snake()
@@ -141,20 +166,6 @@ Game::Game(int width, int height)
     printf("Hi it`s Snake3D game\n");
     level = 1;
     isLoad = true;
-}
-
-void* Game::ReadFile(void* inFile){
-    FILE* file = (FILE*)inFile;
-    char buffer[MAX_BUFFER];
-    unsigned size = 0;
-    while(!feof(file))
-        buffer[size++] = fgetc(file);
-    if(!size)
-        return 0;
-    buffer[size] = '\0';
-    void* memory = malloc(size+1);
-    memcpy(memory,buffer,size+1);
-    return memory;
 }
 
 void Game::CreateGrid()
@@ -254,11 +265,21 @@ void Game::Update()
         if(deltaTime + 0.001f < MIN_UPDATE_TIME)
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         lastFrame = currentFrame;
-        UpdateKeyboard(snake->GetPosition(),snake->GetDirection());
+        UpdateKeyboard(snake->GetDirection());
         if(currentFrame - startTick >= START_TIME_UPD - ((level - 1) * 0.25))
         {
             startTick = currentFrame;
-            *(snake->GetPosition()) += *snake->GetDirection();
+            vec3* pos = snake->GetPosition();
+            vec3* dir = snake->GetDirection();
+            vec3 newPos = *pos + *dir;
+            int cell = snake->PosToCell(newPos);
+            if(cell < 0)
+            {
+                glfwSetWindowTitle(gameWindow,"GAME OVER");
+                *(snake->SetRedraw()) = false;
+            }
+            else
+                *pos += *dir;
             isNeedRedraw = true;
         }
         Render();
@@ -266,7 +287,7 @@ void Game::Update()
     }
 }
 
-void Game::UpdateKeyboard(vec3* position, vec3* dir)
+void Game::UpdateKeyboard(vec3* dir)
 {
     if(glfwGetKey(gameWindow,GLFW_KEY_ESCAPE) == GLFW_PRESS)
     {

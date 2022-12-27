@@ -1,16 +1,19 @@
 #ifndef GAME_H_INCLUDED
 #define GAME_H_INCLUDED
-#include <vector>
+#include <unordered_set>
 #include <glm/glm.hpp>
 #define MAX_BUFFER 4096
 #define GRID_COL_COUNT 16
 #define GRID_ROW_COUNT 16
+#define GRID_CELLS_TOTAL GRID_COL_COUNT * GRID_ROW_COUNT
 #define GRID_CELL_SPACE 0.5
+#define GRID_CELL_CENTER (float)GRID_CELL_SPACE / 2
+#define GRID_CENTER GRID_ROW_COUNT / 2 * GRID_COL_COUNT + GRID_COL_COUNT / 2
 #define Z_BEGIN -1.0
 #define START_TIME_UPD 1.75
 
 using glm::vec3;
-using std::vector;
+using std::unordered_set;
 const float MIN_UPDATE_TIME = (float)1000/60;
 
 typedef struct GLFWwindow GLFWwindow;
@@ -41,14 +44,15 @@ public:
     int AttachShaders(int vs,int fs, const char* key);
     void Update();
     void Render();
-    void UpdateKeyboard(vec3* position, vec3* dir);
+    void UpdateKeyboard(vec3* dir);
     ~Game();
 };
 
 class Snake
 {
 private:
-    vector<unsigned int> cells;
+    bool isNeedRedraw;
+    unordered_set<unsigned int> cells;
     vec3 position;
     vec3 dir;
     float vertices[144];
@@ -56,6 +60,9 @@ private:
     void WriteVector(vec3 coords);
     void WriteVertices(vec3 offset);
 public:
+    Snake();
+    int PosToCell(vec3 pos);
+    vec3 CellToPos(unsigned int cell);
     inline vec3* GetPosition()
     {
         return &position;
@@ -64,8 +71,11 @@ public:
     {
         return &dir;
     }
-    Snake();
     void DrawSnake(void* mv, void* proj);
+    inline bool* SetRedraw()
+    {
+        return &isNeedRedraw;
+    }
     ~Snake();
 };
 #endif // GAME_H_INCLUDED
