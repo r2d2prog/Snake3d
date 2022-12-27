@@ -4,7 +4,7 @@ in vec3 outNormal;
 const vec3 lightDir = vec3(10.0,-10.0,-10.0);
 const vec3 lightColor = vec3(1.0,1.0,1.0);
 const vec3 ambientColor = vec3(1.0,1.0,1.0);
-const vec3 color = vec3(0.7, 0.7, 0.7);
+uniform vec3 color;
 const float aStrength = 0.3;
 void main()
 {
