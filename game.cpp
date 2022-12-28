@@ -58,6 +58,7 @@ bool Snake::Update(GLFWwindow* window, const pair<vec3,vec3>* food)
 {
     vec3 newPos = Game::CellToPos(cells[0].first) + dir;
     int cell = Game::PosToCell(newPos);
+    //printf("New cell %d, Position:%f,%f,%f\n", cell, newPos.x, newPos.y, newPos.z);
     if(cell < 0)
     {
         glfwSetWindowTitle(window,"GAME OVER");
@@ -127,8 +128,8 @@ Snake::Snake()
     vec3 color;
     Game::SetRandColor(&color);
     cells.push_back(std::make_pair((unsigned int)GRID_CENTER, color));
+    //printf("%d\n",cells[0]);
     dir = vec3(0.0f, 0.0f, -GRID_CELL_SPACE);
-
     isNeedRedraw = true;
 }
 
@@ -270,11 +271,11 @@ void Game::UpdateFood()
         gridCells[i] = i;
     for(unsigned i = 0; i < cells->size(); ++i)
         cellsPos.push_back((*cells)[i].first);
+    std::sort(cellsPos.begin(),cellsPos.end());
     vector<unsigned int> v;
     std::set_symmetric_difference(cellsPos.begin(), cellsPos.end(), gridCells.begin(), gridCells.end(), std::back_inserter(v));
-    std::srand(std::time(0));
     unsigned int value = std::rand() % v.size();
-    food.first = CellToPos(value);
+    food.first = CellToPos(v[value]);
     SetRandColor(&food.second);
     isFoodRedraw = true;
 }

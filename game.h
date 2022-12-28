@@ -4,8 +4,8 @@
 #include <glm/glm.hpp>
 #include <cstdlib>
 #include <vector>
-#define GRID_COL_COUNT 16
-#define GRID_ROW_COUNT 16
+#define GRID_COL_COUNT 4
+#define GRID_ROW_COUNT 4
 #define GRID_CELLS_TOTAL GRID_COL_COUNT * GRID_ROW_COUNT
 #define GRID_CELL_SPACE 0.5
 #define GRID_CELL_CENTER (float)GRID_CELL_SPACE / 2
@@ -62,7 +62,9 @@ public:
     }
     static int PosToCell(vec3 pos)
     {
-        int colIndex = (int)((pos.x - GRID_CELL_CENTER) /  GRID_CELL_SPACE) + GRID_COL_COUNT / 2;
+        float beginX = (float)GRID_CELL_SPACE / 2 - (float)GRID_COL_COUNT / 2 * GRID_CELL_SPACE;
+        float centerOfCell = beginX + GRID_COL_COUNT / 2 * GRID_CELL_SPACE;
+        int colIndex = (int)((pos.x - centerOfCell) /  GRID_CELL_SPACE) + GRID_COL_COUNT / 2;
         int rowIndex = (int)(pos.z / GRID_CELL_SPACE) + GRID_ROW_COUNT + 1 ;
         if((colIndex < 0 || colIndex >= GRID_COL_COUNT) || (rowIndex < 0 || rowIndex >= GRID_ROW_COUNT ))
             return -1;
@@ -82,7 +84,6 @@ private:
     bool isNeedRedraw;
     vector<pair<unsigned int,vec3> > cells;
     vec3 dir;
-    //vec3 color;
     float vertices[144];
     unsigned int indices[36];
     void WriteVector(vec3 coords);
