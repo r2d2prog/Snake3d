@@ -54,15 +54,36 @@ void Snake::DrawSnake(void* mv, void* proj)
     }
 }
 
-bool Snake::Update(GLFWwindow* window, const pair<vec3,vec3>* food)
+bool Snake::UpdateKeyboard(GLFWwindow* gameWindow)
+{
+    if(glfwGetKey(gameWindow,GLFW_KEY_ESCAPE) == GLFW_PRESS)
+    {
+    	glfwSetWindowShouldClose(gameWindow, GL_TRUE);
+    	return false;
+    }
+    vec3 newDir(0);
+    if(glfwGetKey(gameWindow,GLFW_KEY_UP) == GLFW_PRESS)
+        newDir = vec3(0.0f, 0.0f, -GRID_CELL_SPACE);
+    else if(glfwGetKey(gameWindow,GLFW_KEY_DOWN) == GLFW_PRESS)
+        newDir = vec3(0.0f, 0.0f, GRID_CELL_SPACE);
+    else if(glfwGetKey(gameWindow,GLFW_KEY_LEFT) == GLFW_PRESS)
+        newDir = vec3(-GRID_CELL_SPACE, 0.0f, 0.0f);
+    else if(glfwGetKey(gameWindow,GLFW_KEY_RIGHT) == GLFW_PRESS)
+        newDir = vec3(GRID_CELL_SPACE, 0.0f, 0.0f);
+    float dp = glm::dot(newDir,dir);
+    if(newDir != vec3(0) && ( abs(dp) < 0.01f || cells.size() == 1))
+        dir = newDir;
+    return true;
+}
+
+int Snake::Update(const pair<vec3,vec3>* food)
 {
     vec3 newPos = Game::CellToPos(cells[0].first) + dir;
     int cell = Game::PosToCell(newPos);
-    //printf("New cell %d, Position:%f,%f,%f\n", cell, newPos.x, newPos.y, newPos.z);
     if(cell < 0)
     {
-        glfwSetWindowTitle(window,"GAME OVER");
         isNeedRedraw = false;
+        return -1;
     }
     else
     {
@@ -77,6 +98,11 @@ bool Snake::Update(GLFWwindow* window, const pair<vec3,vec3>* food)
             else
             {
                 unsigned int temp = cells[i].first;
+                if(last == (unsigned int)cell)
+                {
+                    isNeedRedraw = false;
+                    return -1;
+                }
                 cells[i].first = last;
                 last = temp;
             }
@@ -85,10 +111,15 @@ bool Snake::Update(GLFWwindow* window, const pair<vec3,vec3>* food)
         if(foodCell == cell)
         {
             cells.push_back(std::make_pair(last,food->second));
-            return true;
+            if(cells.size() == GRID_CELLS_TOTAL)
+            {
+                isNeedRedraw = false;
+                return 2;
+            }
+            return 1;
         }
     }
-    return false;
+    return 0;
 }
 
 Snake::Snake()
@@ -128,7 +159,6 @@ Snake::Snake()
     vec3 color;
     Game::SetRandColor(&color);
     cells.push_back(std::make_pair((unsigned int)GRID_CENTER, color));
-    //printf("%d\n",cells[0]);
     dir = vec3(0.0f, 0.0f, -GRID_CELL_SPACE);
     isNeedRedraw = true;
 }
@@ -146,6 +176,7 @@ Snake::~Snake()
 Game::Game(int width, int height)
 {
     isLoad = false;
+    status = score = 0;
     if(!glfwInit())
     {
         printf("Error: Can`t initailize GLFW\n");
@@ -155,7 +186,7 @@ Game::Game(int width, int height)
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR,3);
     glfwWindowHint(GLFW_OPENGL_PROFILE,GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_RESIZABLE,GLFW_TRUE);
-    gameWindow = glfwCreateWindow(width,height,"SNAKE3D(WORK IN PROGRESS)",NULL,NULL);
+    gameWindow = glfwCreateWindow(width,height,(string("Snake3D SCORE: ")+std::to_string(score)).c_str(),NULL,NULL);
     if(!gameWindow){
         printf("Error: Cant`t create GLFW window\n");
         glfwTerminate();
@@ -173,10 +204,11 @@ Game::Game(int width, int height)
     glEnable(GL_DEPTH_TEST);
     const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
     glfwSetWindowPos(gameWindow,(mode->width >> 1) - (wWidth >> 1), (mode->height >> 1) - (wHeight >> 1));
-    auto vShader = GraphicsData::LoadShader("shaders/vertex.vs", GL_VERTEX_SHADER,"gridVShader");
-    auto fShader = GraphicsData::LoadShader("shaders/fragment.fs",GL_FRAGMENT_SHADER,"gridFShader");
-    auto vsShader = GraphicsData::LoadShader("shaders/vsnake.vs", GL_VERTEX_SHADER,"snakeVShader");
-    auto fsShader = GraphicsData::LoadShader("shaders/fsnake.fs", GL_FRAGMENT_SHADER,"snakeFShader");
+    glfwMaximizeWindow(gameWindow);
+    auto vShader = GraphicsData::LoadShader("shaders/vertex.vs", GL_VERTEX_SHADER, "gridVShader");
+    auto fShader = GraphicsData::LoadShader("shaders/fragment.fs",GL_FRAGMENT_SHADER, "gridFShader");
+    auto vsShader = GraphicsData::LoadShader("shaders/vsnake.vs", GL_VERTEX_SHADER, "snakeVShader");
+    auto fsShader = GraphicsData::LoadShader("shaders/fsnake.fs", GL_FRAGMENT_SHADER, "snakeFShader");
     if(!vShader || !fShader || !vsShader || !fsShader)
         return;
     auto program =  AttachShaders(vShader, fShader, "gridProgram");
@@ -190,7 +222,6 @@ Game::Game(int width, int height)
     UpdateFood();
     glClearColor(0.0f,0.59f,0.59f,1.0f);
     printf("Hi it`s Snake3D game\n");
-    level = 1;
     isLoad = true;
     std::srand(std::time(nullptr));
 }
@@ -298,7 +329,6 @@ void Game::DrawFood(void* mv, void* proj)
     }
 }
 
-
 int Game::AttachShaders(int vs,int fs, const char* key)
 {
     int program = glCreateProgram();
@@ -330,38 +360,33 @@ void Game::Update()
     while(!glfwWindowShouldClose(gameWindow) && isLoad){
         float currentFrame = glfwGetTime();
         float deltaTime = currentFrame - lastFrame;
-        if(deltaTime + 0.001f < MIN_UPDATE_TIME)
+        if(deltaTime + 0.001f < (float)MIN_UPDATE_TIME)
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         lastFrame = currentFrame;
-        UpdateKeyboard(snake->GetDirection());
-        if(currentFrame - startTick >= START_TIME_UPD - ((level - 1) * 0.25))
+        isLoad = snake->UpdateKeyboard(gameWindow);
+        level = score / (FOODS_PER_LEVEL * SCORE_INCREMENT);
+        if(currentFrame - startTick >= START_TIME_UPD - level * UPDATE_TIME_PER_LEVEL)
         {
             startTick = currentFrame;
-            bool isFoodUpdate = snake->Update(gameWindow, &food);
-            if(isFoodUpdate)
+            if(status == 0 || status == 1)
+                status = snake->Update(&food);
+            if(status == 1)
+            {
+                score += SCORE_INCREMENT;
+                glfwSetWindowTitle(gameWindow,(string("Snake3D SCORE: ")+std::to_string(score)).c_str());
                 UpdateFood();
+            }
+            else if(status != 0)
+            {
+                string msg = "Snake3D SCORE: " + std::to_string(score) + (status == -1 ? " GAME OVER" : " YOU WON");
+                glfwSetWindowTitle(gameWindow, msg.c_str());
+                isFoodRedraw = false;
+            }
             isNeedRedraw = true;
         }
         Render();
         glfwPollEvents();
     }
-}
-
-void Game::UpdateKeyboard(vec3* dir)
-{
-    if(glfwGetKey(gameWindow,GLFW_KEY_ESCAPE) == GLFW_PRESS)
-    {
-    	glfwSetWindowShouldClose(gameWindow, GL_TRUE);
-    	isLoad = false;
-    }
-    if(glfwGetKey(gameWindow,GLFW_KEY_UP) == GLFW_PRESS)
-        *dir = vec3(0.0f, 0.0f, -GRID_CELL_SPACE);
-    else if(glfwGetKey(gameWindow,GLFW_KEY_DOWN) == GLFW_PRESS)
-        *dir = vec3(0.0f, 0.0f, GRID_CELL_SPACE);
-    else if(glfwGetKey(gameWindow,GLFW_KEY_LEFT) == GLFW_PRESS)
-        *dir = vec3(-GRID_CELL_SPACE, 0.0f, 0.0f);
-    else if(glfwGetKey(gameWindow,GLFW_KEY_RIGHT) == GLFW_PRESS)
-        *dir = vec3(GRID_CELL_SPACE, 0.0f, 0.0f);
 }
 
 void Game::Render()

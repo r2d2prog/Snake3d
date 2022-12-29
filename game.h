@@ -1,6 +1,5 @@
 #ifndef GAME_H_INCLUDED
 #define GAME_H_INCLUDED
-#include <unordered_set>
 #include <glm/glm.hpp>
 #include <cstdlib>
 #include <vector>
@@ -11,12 +10,15 @@
 #define GRID_CELL_CENTER (float)GRID_CELL_SPACE / 2
 #define GRID_CENTER GRID_ROW_COUNT / 2 * GRID_COL_COUNT + GRID_COL_COUNT / 2
 #define Z_BEGIN -1.0
-#define START_TIME_UPD 1.75
+#define SCORE_INCREMENT 100
+#define MIN_UPDATE_TIME 1/60
+#define START_TIME_UPD 1.5 - (float)MIN_UPDATE_TIME
+#define FOODS_PER_LEVEL 5
+#define UPDATE_TIME_PER_LEVEL (START_TIME_UPD) * FOODS_PER_LEVEL  / ((float)GRID_CELLS_TOTAL - 1)
 
 using glm::vec3;
 using std::vector;
 using std::pair;
-const float MIN_UPDATE_TIME = (float)1000/60;
 
 typedef struct GLFWwindow GLFWwindow;
 class Snake;
@@ -28,6 +30,8 @@ class Game{
 private:
     bool isLoad;
     bool isNeedRedraw;
+    int status;
+    unsigned int score;
     int wWidth;
     int wHeight;
     unsigned int level;
@@ -74,7 +78,6 @@ public:
     int AttachShaders(int vs,int fs, const char* key);
     void Update();
     void Render();
-    void UpdateKeyboard(vec3* dir);
     ~Game();
 };
 
@@ -98,7 +101,8 @@ public:
     {
         return &cells;
     }
-    bool Update(GLFWwindow* window, const pair<vec3,vec3>* food);
+    bool UpdateKeyboard(GLFWwindow* gameWindow);
+    int Update(const pair<vec3,vec3>* food);
     void DrawSnake(void* mv, void* proj);
     inline bool* SetRedraw()
     {
